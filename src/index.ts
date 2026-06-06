@@ -43,7 +43,6 @@ class Rect {
     }
 }
 
-
 class Player {
     rect: Rect
     speed: number
@@ -76,31 +75,38 @@ class Player {
         if (keys.indexOf('ArrowRight') > -1) {
             this.rect.x += this.speed * delataTime;
         }
+
         // HORIZONTAL BOUNDARIES
-        if (this.rect.x < 0) {
-            this.rect.x = 0;
-        } else if (this.rect.x > SIZE_CANVAS.WIDTH - this.rect.w) {
-            this.rect.x = SIZE_CANVAS.WIDTH - this.rect.w;
+        if (this.rect.x < -this.rect.w * 0.5) {
+            this.rect.x = -this.rect.w * 0.5;
+        } else if (this.rect.x > SIZE_CANVAS.WIDTH - this.rect.w * 0.5) {
+            this.rect.x = SIZE_CANVAS.WIDTH - this.rect.w * 0.5;
         }
     }
 
+    shoot(pp: ProjectilePool) {
+        const p = pp.getProjectile()
+        if (p != undefined) {
+            p.start(this.rect.x + this.rect.w * 0.5, this.rect.y)
+        }
+    }
 }
 
 class Projectile {
     rect: Rect;
     speed: number;
-    free: boolean;
+    active: boolean;
 
     constructor() {
         this.rect = new Rect(0, 0);
-        this.rect.w = 4;
+        this.rect.w = 10;
         this.rect.h = 20;
         this.speed = 200;
-        this.free = true
+        this.active = false;
     }
 
     draw(ctx: CanvasRenderingContext2D): void {
-        if (!this.free) {
+        if (this.active) {
             // 1. Set the visual styles
             ctx.fillStyle = "#3498db";    // Interior color
             ctx.strokeStyle = "#2c3e50";  // Border color
@@ -115,18 +121,83 @@ class Projectile {
     }
 
     update(delataTime: number): void {
-        if (!this.free) {
+        if (this.active) {
             this.rect.y -= this.speed * delataTime;
+            if (this.rect.y <= 0) {
+                this.reset()
+            }
         }
     }
 
-    start(): void { this.free = true; }
-    reset(): void { this.free = true; }
+    start(x: number, y: number): void {
+        this.active = true;
+        this.rect.x = x - this.rect.w * 0.5;
+        this.rect.y = y;
+    }
+    reset(): void { this.active = false; }
 
 }
 
-class Enemy {
+class ProjectilePool {
+    pp: Array<Projectile>
 
+    constructor(numberOfProjectiles: number) {
+        this.pp = new Array<Projectile>()
+
+        for (let i = 0; i < numberOfProjectiles; i++) {
+            this.pp.push(new Projectile());
+        }
+    }
+
+    getProjectile(): Projectile | undefined {
+        for (let i = 0; i < this.pp.length; i++) {
+            const projectile = this.pp.at(i) as Projectile;
+            if (!projectile.active) {
+                return this.pp[i];
+            }
+        }
+        return undefined;
+    }
+
+    update(delataTime: number, ctx: CanvasRenderingContext2D) {
+        for (let i = 0; i < this.pp.length; i++) {
+            const pr = this.pp.at(i) as Projectile;
+            if (pr != undefined && pr.active) {
+                pr.update(delataTime);
+                pr.draw(ctx);
+            }
+        }
+    }
+}
+
+
+class Enemy {
+    rect: Rect
+    speed: number
+
+    constructor() {
+        this.rect = new Rect(0, 0);
+        this.rect.x = 0
+        this.rect.y = 0
+        this.speed = 100;
+    }
+
+    draw(ctx: CanvasRenderingContext2D): void {
+        // 1. Set the visual styles
+        ctx.fillStyle = "#3498db";    // Interior color
+        ctx.strokeStyle = "#2c3e50";  // Border color
+        ctx.lineWidth = 5;            // Border thickness
+
+        // 2. Draw the interior fill
+        ctx.fillRect(this.rect.x, this.rect.y, this.rect.w, this.rect.h);
+
+        // 3. Draw the border outline
+        ctx.strokeRect(this.rect.x, this.rect.y, this.rect.w, this.rect.h);
+    }
+
+    update(delataTime: number): void {
+        
+    }
 }
 
 class Game {
@@ -135,8 +206,7 @@ class Game {
     isRunning: boolean
     lastTime: number
     keys: Array<string>
-    projectilesPool: Array<Projectile>
-    numberOfProjectiles: number
+    projectilesPool: ProjectilePool
     player: Player
 
     constructor() {
@@ -150,31 +220,15 @@ class Game {
         this.lastTime = 0;
         this.keys = new Array<string>()
         this.player = new Player()
-        this.projectilesPool = new Array<Projectile>()
-        this.numberOfProjectiles = 10
-        this.createProjectiles()
+        // pool object
+        this.projectilesPool = new ProjectilePool(10);
 
-        
 
         this.initInput();
         this.loop = this.loop.bind(this);
     }
 
-    createProjectiles() {
-        for (let i = 0; i < this.numberOfProjectiles; i++) {
-            this.projectilesPool.push(new Projectile());
-        }
-    }
 
-    getProjectile(): Projectile | undefined {
-        for (let i = 0; i < this.projectilesPool.length; i++) {
-            const projectile = this.projectilesPool.at(i) as Projectile;
-            if (projectile.free) {
-                return this.projectilesPool[i];
-            }
-        }
-        return undefined;
-    }
 
     start(): void {
         if (this.isRunning) return;
@@ -188,6 +242,10 @@ class Game {
     initInput() {
         window.addEventListener('keydown', (e) => {
             if (this.keys.indexOf(e.key) === -1) this.keys.push(e.key);
+
+            if (e.code === 'Space') {
+                this.player.shoot(this.projectilesPool);
+            }
         })
         //
         window.addEventListener('keyup', (e) => {
@@ -208,10 +266,12 @@ class Game {
             this.ctx.clearRect(0, 0, SIZE_CANVAS.WIDTH, SIZE_CANVAS.HEIGHT)
 
             // Draw background
-            this.ctx.fillStyle = '#1a1a2e'
-            this.ctx.fillRect(0, 0, SIZE_CANVAS.WIDTH, SIZE_CANVAS.HEIGHT)
+            //this.ctx.fillStyle = '#1a1a2e'
+            //this.ctx.fillRect(0, 0, SIZE_CANVAS.WIDTH, SIZE_CANVAS.HEIGHT)
 
             this.player.draw(this.ctx);
+
+            this.projectilesPool.update(deltaTime, this.ctx);
 
         }
 
