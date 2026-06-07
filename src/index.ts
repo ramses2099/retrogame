@@ -31,7 +31,6 @@ interface Size {
     h: number;
 }
 
-
 /**
  * Represents a rectangle.
  * 
@@ -85,7 +84,6 @@ abstract class GameObject {
     public abstract update(delataTime: number): void;
 }
 
-
 class Player extends GameObject {
 
     constructor() {
@@ -95,6 +93,7 @@ class Player extends GameObject {
     setInitPosition(): void {
         this.rect.x = SIZE_CANVAS.WIDTH * 0.5 - this.rect.w * 0.5;
         this.rect.y = SIZE_CANVAS.HEIGHT - this.rect.h;
+        this.speed = 200;
     }
 
     setInput(keys: Array<string>, delataTime: number): void {
@@ -137,25 +136,21 @@ class Player extends GameObject {
     }
 }
 
-class Projectile {
-    rect: Rect;
-    speed: number;
+class Projectile extends GameObject {
+
     active: boolean;
 
     constructor() {
-        this.rect = new Rect(0, 0);
-        this.rect.w = 10;
-        this.rect.h = 20;
-        this.speed = 200;
+        super(0, 0, 10, 20, 200);
         this.active = false;
     }
 
     draw(ctx: CanvasRenderingContext2D): void {
         if (this.active) {
             // 1. Set the visual styles
-            ctx.fillStyle = "#3498db";    // Interior color
-            ctx.strokeStyle = "#2c3e50";  // Border color
-            ctx.lineWidth = 5;            // Border thickness
+            ctx.fillStyle = this.color.fillStyle;    // Interior color
+            ctx.strokeStyle = this.color.strokeStyle;  // Border color
+            ctx.lineWidth = this.color.lineWidth;      // Border thickness
 
             // 2. Draw the interior fill
             ctx.fillRect(this.rect.x, this.rect.y, this.rect.w, this.rect.h);
@@ -179,6 +174,7 @@ class Projectile {
         this.rect.x = x - this.rect.w * 0.5;
         this.rect.y = y;
     }
+
     reset(): void { this.active = false; }
 
 }
@@ -215,23 +211,32 @@ class ProjectilePool {
     }
 }
 
+class Enemy extends GameObject {
+    posX: number
+    posY: number
+    dX: number
+    dY: number
 
-class Enemy {
-    rect: Rect
-    speed: number
+    constructor(posX: number, posY: number) {
+        super(0, 0)
+        this.setColor({ fillStyle: '#c61313', strokeStyle: '#8a080c', lineWidth: 5 })
+        this.posX = posX;
+        this.posY = posY
+        this.dX = 0;
+        this.dY = posY
 
-    constructor() {
-        this.rect = new Rect(0, 0);
-        this.rect.x = 0
-        this.rect.y = 0
-        this.speed = 100;
+    }
+
+    setPosD(pos: Position) {
+        this.dX = pos.x;
+        this.dY = pos.y;
     }
 
     draw(ctx: CanvasRenderingContext2D): void {
         // 1. Set the visual styles
-        ctx.fillStyle = "#3498db";    // Interior color
-        ctx.strokeStyle = "#2c3e50";  // Border color
-        ctx.lineWidth = 5;            // Border thickness
+        ctx.fillStyle = this.color.fillStyle;    // Interior color
+        ctx.strokeStyle = this.color.strokeStyle;  // Border color
+        ctx.lineWidth = this.color.lineWidth;            // Border thickness
 
         // 2. Draw the interior fill
         ctx.fillRect(this.rect.x, this.rect.y, this.rect.w, this.rect.h);
@@ -241,9 +246,61 @@ class Enemy {
     }
 
     update(delataTime: number): void {
+        this.rect.x = this.dX + this.posX;
+        this.rect.y = this.dY + this.posY;
+    }
+
+
+}
+
+class Wave extends GameObject {
+    columns: number
+    rows: number
+    speedx: number
+    speedy: number
+    enemies: Array<Enemy>
+
+    constructor() {
+        super(0, 0, 60, 60)
+        this.rows = 3;
+        this.columns = 3;
+        this.setColor({ fillStyle: '#c61313', strokeStyle: '#8a080c', lineWidth: 2 })
+        this.rect.w = this.columns * this.w;
+        this.rect.h = this.rows * this.h;
+        this.speedx = 20;
+        this.speedy = 0;
+        this.enemies = new Array<Enemy>();
 
     }
+
+    draw(ctx: CanvasRenderingContext2D): void {
+        ctx.strokeStyle = this.color.strokeStyle;  // Border color
+        ctx.lineWidth = this.color.lineWidth;            // Border thickness
+        ctx.strokeRect(this.rect.x, this.rect.y, this.rect.w, this.rect.h);
+    }
+
+    update(delataTime: number): void {
+        this.speedy = 0;
+
+        if (this.rect.x < 0 || this.rect.x > SIZE_CANVAS.WIDTH - this.rect.w) {
+            this.speedx *= -1;
+            this.speedy = this.w;
+        }
+        this.rect.x += this.speedx * delataTime;
+        this.rect.y += this.speedy;
+    }
+
+    create() {
+        for (let x = 0; x < this.rows; x++) {
+            for (let y = 0; y < this.columns; y++) {
+                let eX = x * 60;
+                let eY = y * 60;
+                this.enemies.push(new Enemy(eX, eY));
+            }
+        }
+    }
 }
+
 
 class Game {
     canvas: HTMLCanvasElement
@@ -251,6 +308,7 @@ class Game {
     isRunning: boolean
     lastTime: number
     keys: Array<string>
+    waves: Array<Wave>
     projectilesPool: ProjectilePool
     player: Player
 
@@ -271,6 +329,9 @@ class Game {
         // pool object
         this.projectilesPool = new ProjectilePool(10);
 
+        // waves
+        this.waves = new Array<Wave>();
+        this.waves.push(new Wave());
 
         this.initInput();
         this.loop = this.loop.bind(this);
@@ -315,13 +376,16 @@ class Game {
         if (this.ctx != null) {
             this.ctx.clearRect(0, 0, SIZE_CANVAS.WIDTH, SIZE_CANVAS.HEIGHT)
 
-            // Draw background
-            //this.ctx.fillStyle = '#1a1a2e'
-            //this.ctx.fillRect(0, 0, SIZE_CANVAS.WIDTH, SIZE_CANVAS.HEIGHT)
-
             this.player.draw(this.ctx);
 
             this.projectilesPool.update(deltaTime, this.ctx);
+
+
+            //WAVE
+            this.waves.forEach((w: Wave) => {
+                w.update(deltaTime);
+                w.draw(this.ctx);
+            });
 
         }
 
