@@ -15,6 +15,23 @@ class Log {
     }
 }
 
+interface Color {
+    fillStyle: string;    // Interior color
+    strokeStyle: string;  // Border color
+    lineWidth: number;    // Border thickness
+}
+
+interface Position {
+    x: number;
+    y: number;
+}
+
+interface Size {
+    w: number;
+    h: number;
+}
+
+
 /**
  * Represents a rectangle.
  * 
@@ -43,22 +60,58 @@ class Rect {
     }
 }
 
-class Player {
+abstract class GameObject {
+    x: number
+    y: number
+    w: number
+    h: number
     rect: Rect
     speed: number
+    color: Color
+
+    constructor(x: number, y: number, w: number = 64, h: number = 64, speed: number = 20) {
+        this.w = w;
+        this.h = h;
+        this.x = x;
+        this.y = y;
+        this.rect = new Rect(this.x, this.y, this.w, this.h);
+        this.speed = speed
+        this.color = { fillStyle: "#3498db", strokeStyle: "#2c3e50", lineWidth: 5 };            // Border thickness
+    }
+
+    public setColor(color: Color): void { this.color = color; }
+    public getRect(): Rect { return this.rect; }
+    public abstract draw(ctx: CanvasRenderingContext2D): void;
+    public abstract update(delataTime: number): void;
+}
+
+
+class Player extends GameObject {
 
     constructor() {
-        this.rect = new Rect(0, 0);
+        super(0, 0);
+    }
+
+    setInitPosition(): void {
         this.rect.x = SIZE_CANVAS.WIDTH * 0.5 - this.rect.w * 0.5;
         this.rect.y = SIZE_CANVAS.HEIGHT - this.rect.h;
-        this.speed = 100;
+    }
+
+    setInput(keys: Array<string>, delataTime: number): void {
+        // HORIZONTAL MOVEMENT
+        if (keys.indexOf('ArrowLeft') > -1) {
+            this.rect.x -= this.speed * delataTime;
+        }
+        if (keys.indexOf('ArrowRight') > -1) {
+            this.rect.x += this.speed * delataTime;
+        }
     }
 
     draw(ctx: CanvasRenderingContext2D): void {
         // 1. Set the visual styles
-        ctx.fillStyle = "#3498db";    // Interior color
-        ctx.strokeStyle = "#2c3e50";  // Border color
-        ctx.lineWidth = 5;            // Border thickness
+        ctx.fillStyle = this.color.fillStyle;    // Interior color
+        ctx.strokeStyle = this.color.strokeStyle;  // Border color
+        ctx.lineWidth = this.color.lineWidth;            // Border thickness
 
         // 2. Draw the interior fill
         ctx.fillRect(this.rect.x, this.rect.y, this.rect.w, this.rect.h);
@@ -67,15 +120,7 @@ class Player {
         ctx.strokeRect(this.rect.x, this.rect.y, this.rect.w, this.rect.h);
     }
 
-    update(delataTime: number, keys: Array<string>): void {
-        // HORIZONTAL MOVEMENT
-        if (keys.indexOf('ArrowLeft') > -1) {
-            this.rect.x -= this.speed * delataTime;
-        }
-        if (keys.indexOf('ArrowRight') > -1) {
-            this.rect.x += this.speed * delataTime;
-        }
-
+    update(delataTime: number): void {
         // HORIZONTAL BOUNDARIES
         if (this.rect.x < -this.rect.w * 0.5) {
             this.rect.x = -this.rect.w * 0.5;
@@ -196,7 +241,7 @@ class Enemy {
     }
 
     update(delataTime: number): void {
-        
+
     }
 }
 
@@ -219,7 +264,10 @@ class Game {
         this.isRunning = false;
         this.lastTime = 0;
         this.keys = new Array<string>()
+
+
         this.player = new Player()
+        this.player.setInitPosition()
         // pool object
         this.projectilesPool = new ProjectilePool(10);
 
@@ -257,9 +305,11 @@ class Game {
     }
 
     update(deltaTime: number): void {
+        //INPUT 
+        this.player.setInput(this.keys, deltaTime);
 
         //UPDATE
-        this.player.update(deltaTime, this.keys);
+        this.player.update(deltaTime);
 
         // RENDER
         if (this.ctx != null) {

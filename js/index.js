@@ -39,26 +39,35 @@ class Rect {
         this.y = y;
     }
 }
-class Player {
+class GameObject {
+    x;
+    y;
+    w;
+    h;
     rect;
     speed;
+    color;
+    constructor(x, y, w = 64, h = 64, speed = 20) {
+        this.w = w;
+        this.h = h;
+        this.x = x;
+        this.y = y;
+        this.rect = new Rect(this.x, this.y, this.w, this.h);
+        this.speed = speed;
+        this.color = { fillStyle: "#3498db", strokeStyle: "#2c3e50", lineWidth: 5 }; // Border thickness
+    }
+    setColor(color) { this.color = color; }
+    getRect() { return this.rect; }
+}
+class Player extends GameObject {
     constructor() {
-        this.rect = new Rect(0, 0);
+        super(0, 0);
+    }
+    setInitPosition() {
         this.rect.x = SIZE_CANVAS.WIDTH * 0.5 - this.rect.w * 0.5;
         this.rect.y = SIZE_CANVAS.HEIGHT - this.rect.h;
-        this.speed = 100;
     }
-    draw(ctx) {
-        // 1. Set the visual styles
-        ctx.fillStyle = "#3498db"; // Interior color
-        ctx.strokeStyle = "#2c3e50"; // Border color
-        ctx.lineWidth = 5; // Border thickness
-        // 2. Draw the interior fill
-        ctx.fillRect(this.rect.x, this.rect.y, this.rect.w, this.rect.h);
-        // 3. Draw the border outline
-        ctx.strokeRect(this.rect.x, this.rect.y, this.rect.w, this.rect.h);
-    }
-    update(delataTime, keys) {
+    setInput(keys, delataTime) {
         // HORIZONTAL MOVEMENT
         if (keys.indexOf('ArrowLeft') > -1) {
             this.rect.x -= this.speed * delataTime;
@@ -66,6 +75,18 @@ class Player {
         if (keys.indexOf('ArrowRight') > -1) {
             this.rect.x += this.speed * delataTime;
         }
+    }
+    draw(ctx) {
+        // 1. Set the visual styles
+        ctx.fillStyle = this.color.fillStyle; // Interior color
+        ctx.strokeStyle = this.color.strokeStyle; // Border color
+        ctx.lineWidth = this.color.lineWidth; // Border thickness
+        // 2. Draw the interior fill
+        ctx.fillRect(this.rect.x, this.rect.y, this.rect.w, this.rect.h);
+        // 3. Draw the border outline
+        ctx.strokeRect(this.rect.x, this.rect.y, this.rect.w, this.rect.h);
+    }
+    update(delataTime) {
         // HORIZONTAL BOUNDARIES
         if (this.rect.x < -this.rect.w * 0.5) {
             this.rect.x = -this.rect.w * 0.5;
@@ -186,6 +207,7 @@ class Game {
         this.lastTime = 0;
         this.keys = new Array();
         this.player = new Player();
+        this.player.setInitPosition();
         // pool object
         this.projectilesPool = new ProjectilePool(10);
         this.initInput();
@@ -216,8 +238,10 @@ class Game {
         });
     }
     update(deltaTime) {
+        //INPUT 
+        this.player.setInput(this.keys, deltaTime);
         //UPDATE
-        this.player.update(deltaTime, this.keys);
+        this.player.update(deltaTime);
         // RENDER
         if (this.ctx != null) {
             this.ctx.clearRect(0, 0, SIZE_CANVAS.WIDTH, SIZE_CANVAS.HEIGHT);
